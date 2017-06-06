@@ -1,7 +1,7 @@
 # ttl_cache
 * Dependence<br>
 ```bash
-  pip install pyredblack <br>
+  pip install pyredblack
 ```
 * Example<br>
 ```Python
