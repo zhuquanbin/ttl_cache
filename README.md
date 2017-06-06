@@ -1,7 +1,9 @@
 # ttl_cache
-dependence
-  pyredblack (0.1.1)  # 红黑树 dict set
-example
+* Dependence<br>
+```bash
+  pip install pyredblack <br>
+```
+* Example<br>
 ```Python
 import random
 import pyredblack
