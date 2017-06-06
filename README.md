@@ -1,5 +1,6 @@
 # ttl_cache
-
+dependence
+  pyredblack (0.1.1)  # 红黑树 dict set
 example
 ```Python
 import random
