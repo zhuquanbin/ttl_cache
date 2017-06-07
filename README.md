@@ -32,7 +32,7 @@ def callback(*args, **kwargs):
 def check_expired_cache():
     global  cache
     while True:
-        cache.clear_expired(callback, msg="checked expired")
+        cache.clear_expired()
         gevent.sleep(0.2)
 
 def generate_cache():
@@ -51,5 +51,6 @@ def test_create_with_expired():
     ])
 
 if __name__ == '__main__':
+    cache.set_callback(callback)
     test_create_with_expired()
 ```

@@ -91,42 +91,66 @@ class ExpireDict(dict):
     def __init__(self, seq = None, **kwargs):
         super(ExpireDict, self).__init__()
         self.ttl_cache_map = pyredblack.rbdict()
+        self._callback = None
 
-    def get(self, key, default = None):
+    def get(self, key, default=None):
         try:
             return self.__getitem__(key)
         except KeyError:
             return default
 
     def pop(self, key, default=None):
-
         """ Get item from the dict and remove it.
-        Return default if expired or does not exist. Never raise KeyError.
-        
-        """
+        Return default if expired or does not exist. Never raise KeyError.        """
         try:
             item = super(ExpireDict, self).pop(key)
-            if item :
-                self.del_ttl_map(item.get_expire_partition(), item.time, key)
+            if item:
+                self._del_ttl_map(item.get_expire_partition(), item.time, key)
                 if not item.is_expired:
                     return item
+                else:
+                    self._expired_callback(key, item)
         except KeyError:
             pass
         return default
 
-    def set_ttl_map(self, partition, expire_time, key):
-        '''
-        set key with ttl map 
-        '''
+    def register_expired_callback(self, callback):
+        """
+        deal with expired data
+
+        example:
+            def func(*args, **kwargs):
+                pass 
+        """
+        self._callback = callback
+
+    def clear_expired(self):
+        for node in self.ttl_cache_map:
+            if node > int(time.time()):
+                break
+            partition = self.ttl_cache_map[node]
+            for k, v in partition.iteritems():
+                if k > datetime.now():
+                    break
+                for _k in v.keys():
+                    item = super(ExpireDict, self).pop(_k)
+                    if item:
+                        self._del_ttl_map(item.get_expire_partition(), item.expire_time, _k)
+                        self._expired_callback(_k, item)
+
+    def clear(self):
+        super(ExpireDict, self).clear()
+        self.ttl_cache_map.clear()
+
+    def _set_ttl_map(self, partition, expire_time, key):
+        '''set key with ttl map '''
         if partition not in self.ttl_cache_map:
             self.ttl_cache_map[partition] = Partition_Node()
         node = self.ttl_cache_map.get(partition)
         node.insert(expire_time, key)
 
-    def del_ttl_map(self, partition, expire_time, key):
-        '''
-        delete key from ttl map 
-        '''
+    def _del_ttl_map(self, partition, expire_time, key):
+        '''delete key from ttl map '''
         try:
             node = self.ttl_cache_map.get(partition)
             node.delete(expire_time, key)
@@ -135,19 +159,23 @@ class ExpireDict(dict):
         except KeyError, e:
             pass
 
-    def __setitem__(self, key, value):
+    def _expired_callback(self, key, item):
+        if not item:    return
+        if self._callback:
+            self._callback(key=key, value=item.value, time=item.time)
 
-        if self.__contains__(key):
-            try:
-                item = self.__getitem__(key)
-                self.del_ttl_map(item.get_expire_partition(), item.expire_time, key)
-            except KeyError:
-                pass
+    def __setitem__(self, key, value):
+        try:
+            item = self.__getitem__(key)
+            self._del_ttl_map(item.get_expire_partition(), item.expire_time, key)
+        except KeyError:
+            pass
         super(ExpireDict, self).__setitem__(key, value)
-        self.set_ttl_map(value.get_expire_partition(), value.expire_time, key)
+        self._set_ttl_map(value.get_expire_partition(), value.expire_time, key)
 
     def __delitem__(self, key):
-        _ = self.pop(key)
+        item = super(ExpireDict, self).pop(key)
+        self._del_ttl_map(item.get_expire_partition(), item.time, key)
 
     def __contains__(self, key):
         try:
@@ -158,44 +186,14 @@ class ExpireDict(dict):
         return False
 
     def __getitem__(self, key):
-        item = super(ExpireDict, self).get(key, None)
-        if not item:    raise  KeyError(key)
+        item = super(ExpireDict, self).__getitem__(key)
         if not item.is_expired:
             return item
         else:
-            self.del_ttl_map(item.get_expire_partition(), item.expire_time, key)
+            self._del_ttl_map(item.get_expire_partition(), item.expire_time, key)
             super(ExpireDict, self).__delitem__(key)
+            self._expired_callback(key, item)
             raise KeyError(key)
-
-    def clear(self):
-        super(ExpireDict, self).clear()
-        self.ttl_cache_map.clear()
-
-    def clear_expired(self, callback = None ,*args, **kwargs):
-        # expired_keys = []
-        for node in self.ttl_cache_map:
-            if node > int(time.time()):
-                break
-            partition = self.ttl_cache_map[node]
-            for k, v in partition.iteritems():
-                if k > datetime.now():
-                    break
-                # expired_keys += v.keys()
-                for _k in v.keys():
-                    item = super(ExpireDict, self).pop(_k)
-                    if item:
-                        self.del_ttl_map(item.get_expire_partition(), item.expire_time, _k)
-                        if callback:
-                            kwargs.update({"key": _k, "value": item.value, "time": item.time})
-                            callback(*args, **kwargs)
-
-        # for k in expired_keys:
-        #     item = super(ExpireDict, self).pop(k)
-        #     if item:
-        #         self.del_ttl_map(item.get_expire_partition(), item.expire_time, k)
-        #         if callback:
-        #             kwargs.update({"key":k, "value" :item.value, "time":item.time})
-        #             callback(*args, **kwargs)
 
     def popitem(self):
         raise NotImplementedError
@@ -238,8 +236,11 @@ class TTL_Cache(object):
     def clear(self):
         self._cache.clear()
 
-    def clear_expired(self, callback = None, *args, **kwargs):
-        self._cache.clear_expired(callback, *args, **kwargs)
+    def clear_expired(self):
+        self._cache.clear_expired()
+
+    def set_callback(self, callback = None):
+        self._cache.register_expired_callback(callback)
 
     @classmethod
     def getInstance(cls):
