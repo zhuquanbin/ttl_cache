@@ -13,8 +13,8 @@ import gevent
 from gevent import  monkey
 monkey.patch_all()
 
-from cache import TTL_Cache
-cache = TTL_Cache.getInstance()
+from cache import MemCache
+cache = MemCache.getInstance()
 
 import logging
 logging.basicConfig(level=logging.INFO,

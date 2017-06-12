@@ -15,7 +15,7 @@ import time
 import pyredblack
 from datetime import datetime, timedelta
 
-__all__ = ["TTL_Cache"]
+__all__ = ["MemCache"]
 
 class DValue(object):
     DEFAULT_TTL_MILLISECONDS = 7*24*60*60*1000
@@ -125,6 +125,7 @@ class ExpireDict(dict):
         self._callback = callback
 
     def clear_expired(self):
+        expire_keys = []
         for node in self.ttl_cache_map:
             if node > int(time.time()):
                 break
@@ -132,11 +133,13 @@ class ExpireDict(dict):
             for k, v in partition.iteritems():
                 if k > datetime.now():
                     break
-                for _k in v.keys():
-                    item = super(ExpireDict, self).pop(_k)
-                    if item:
-                        self._del_ttl_map(item.get_expire_partition(), item.expire_time, _k)
-                        self._expired_callback(_k, item)
+                expire_keys += v.keys()
+
+        for _k in expire_keys:
+            item = super(ExpireDict, self).pop(_k)
+            if item:
+                self._del_ttl_map(item.get_expire_partition(), item.expire_time, _k)
+                self._expired_callback(_k, item)
 
     def clear(self):
         super(ExpireDict, self).clear()
@@ -175,7 +178,7 @@ class ExpireDict(dict):
 
     def __delitem__(self, key):
         item = super(ExpireDict, self).pop(key)
-        self._del_ttl_map(item.get_expire_partition(), item.time, key)
+        self._del_ttl_map(item.get_expire_partition(), item.expire_time, key)
 
     def __contains__(self, key):
         try:
@@ -208,7 +211,7 @@ class ExpireDict(dict):
         raise NotImplementedError
 
 
-class TTL_Cache(object):
+class MemCache(object):
     __instance = None
 
     def __init__(self):
@@ -244,7 +247,7 @@ class TTL_Cache(object):
 
     @classmethod
     def getInstance(cls):
-        if not TTL_Cache.__instance:
-            TTL_Cache.__instance = TTL_Cache()
-        return  TTL_Cache.__instance
+        if not MemCache.__instance:
+            MemCache.__instance = MemCache()
+        return  MemCache.__instance
 
